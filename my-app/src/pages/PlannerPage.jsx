@@ -79,7 +79,8 @@ function PlannerPage() {
   const [extraMessage, setExtraMessage] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [voiceFile, setVoiceFile] = useState(null)
-  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [lastSubmittedSignature, setLastSubmittedSignature] = useState('')
   const isFinalStep = step >= questions.length
   const activeQuestion = questions[step]
 
@@ -90,7 +91,30 @@ function PlannerPage() {
 
   const activeAnswer = activeQuestion ? formAnswers[activeQuestion.id] : ''
   const canAdvance = Boolean(activeAnswer?.trim())
-  const canSubmit = Boolean(extraMessage.trim() || imageFile || voiceFile)
+  const currentSubmissionSignature = useMemo(
+    () =>
+      JSON.stringify({
+        answers: formAnswers,
+        extraMessage: extraMessage.trim(),
+        image: imageFile
+          ? {
+              name: imageFile.name,
+              size: imageFile.size,
+              lastModified: imageFile.lastModified,
+            }
+          : null,
+        voice: voiceFile
+          ? {
+              name: voiceFile.name,
+              size: voiceFile.size,
+              lastModified: voiceFile.lastModified,
+            }
+          : null,
+      }),
+    [extraMessage, formAnswers, imageFile, voiceFile],
+  )
+  const isCurrentDataSubmitted = lastSubmittedSignature === currentSubmissionSignature
+  const canSubmit = Boolean(extraMessage.trim() || imageFile || voiceFile) && !isSending && !isCurrentDataSubmitted
 
   const updateField = (field, value) => {
     setFormAnswers((current) => ({ ...current, [field]: value }))
@@ -105,7 +129,7 @@ function PlannerPage() {
     setStep((current) => Math.max(current - 1, 0))
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) return
 
     const payload = {
@@ -131,20 +155,23 @@ function PlannerPage() {
       data.append('audio', voiceFile)
     }
 
-    fetch("https://ravindulakshitha.app.n8n.cloud/webhook-test/aiBot", {
-      method: "POST",
-      body: data,
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log("Webhook Response:", data)
-      })
-      .catch((err) => {
-        console.error("Error:", err)
-      })
+    setIsSending(true)
 
-    console.log(payload)
-    setIsSubmitted(true)
+    try {
+      const response = await fetch("https://ravindulakshitha.app.n8n.cloud/webhook/aiBot", {
+        method: "POST",
+        body: data,
+      })
+      const responseData = await response.json()
+
+      console.log("Webhook Response:", responseData)
+      console.log(payload)
+      setLastSubmittedSignature(currentSubmissionSignature)
+    } catch (err) {
+      console.error("Error:", err)
+    } finally {
+      setIsSending(false)
+    }
   }
 
   return (
@@ -230,14 +257,14 @@ function PlannerPage() {
               className="mx-auto w-full max-w-2xl text-center"
             >
               <div className="mx-auto mb-6 grid h-14 w-14 place-items-center rounded-full bg-slate-950 text-amber-400 shadow-xl shadow-teal-500/15 dark:bg-slate-100 dark:text-slate-950">
-                {isSubmitted ? <Check size={24} /> : <Compass size={24} />}
+                {isCurrentDataSubmitted ? <Check size={24} /> : <Compass size={24} />}
               </div>
               <h1 className="text-balance text-4xl font-semibold leading-tight text-slate-950 dark:text-slate-100 sm:text-6xl">
-                {isSubmitted ? 'Journey brief sent' : 'Add your final brief'}
+                {isCurrentDataSubmitted ? 'Journey brief sent' : 'Add your final brief'}
               </h1>
               <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-7 text-slate-600 dark:text-slate-400">
-                {isSubmitted
-                  ? 'Your Sri Lankan travel preferences were sent. You can update the brief and send it again.'
+                {isCurrentDataSubmitted
+                  ? 'Your Sri Lankan travel preferences were sent. Update any detail to send a new data set.'
                   : 'Use the floating AI bar for extra requests, notes, images, or a voice memo.'}
               </p>
 

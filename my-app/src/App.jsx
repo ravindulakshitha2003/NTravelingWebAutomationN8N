@@ -8,7 +8,7 @@ function App() {
   const [theme, setTheme] = useState(() => {
     const storedTheme = localStorage.getItem('seravo-theme')
     if (storedTheme) return storedTheme
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    return 'light'
   })
   const location = useLocation()
 
